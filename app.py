@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_restful import Resource, Api
+from flask_restful import Resource, Api, reqparse
 from flask_sqlalchemy import SQLAlchemy
 
 from config import Config
@@ -12,33 +12,75 @@ db = SQLAlchemy(app)
 
 
 class WineModel(db.Model):
+    __tablename__ = 'wine'
     id = db.Column(db.Integer(), primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
     vineyard = db.Column(db.String(80), nullable=False)
 
+    def __init__(self, name, vineyard):
+        self.name = name
+        self.vineyard = vineyard
+
+    def json(self):
+        return {'id': self.id, 'name': self.name, 'vineyard': self.vineyard}
+
     @classmethod
-    def get_wine_by_name(cls):
-        pass
+    def get_wine_by_id(cls, id):
+        return cls.query.filter_by(id=id).first()
+
+    def save_to_db(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def remove_from_db(self):
+        db.session.delete(self)
+        db.session.commit()
 
 
 class Wine(Resource):
-    def get(self):
-        pass
+    parser = reqparse.RequestParser()
+    parser.add_argument('name', type=str)
+    parser.add_argument('vineyard', type=str)
+
+    def get(self, id):
+        return WineModel.get_wine_by_id(id).json()
 
     def post(self):
         pass
 
-    def put(self):
-        pass
+    def put(self, id):
+        wine = WineModel.get_wine_by_id(id)
+        if wine is None:
+            return {'message': 'Wine not found'}, 404
 
-    def delete(self):
-        pass
+        data = Wine.parser.parse_args()
+        wine.name = data['name']
+        wine.vineyard = data['vineyard']
+
+        wine.save_to_db()
+
+        return wine.json(), 200
+
+    def delete(self, id):
+        wine = WineModel.get_wine_by_id(id)
+        wine.remove_from_db()
+        return {'message': 'Wine Deleted'}, 200
 
 
 class WineList(Resource):
     def get(self):
-        return WineModel.query.all()
+        return {'wines': [result.json() for result in WineModel.query.all()]}
+
+    def post(self):
+        data = Wine.parser.parse_args()
+
+        wine = WineModel(data['name'], data['vineyard'])
+
+        wine.save_to_db()
+
+        return wine.json(), 201
 
 
-api.add_resource(Wine, endpoint='wines/<int:id>')
+db.create_all()
+api.add_resource(Wine, '/wines/<int:id>')
 api.add_resource(WineList, '/wines/')
