@@ -10,6 +10,10 @@ api = Api(app)
 
 db = SQLAlchemy(app)
 
+@app.route('/')
+def index():
+    return 'test'
+
 
 class WineModel(db.Model):
     __tablename__ = 'wine'
